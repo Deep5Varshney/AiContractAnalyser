@@ -9,107 +9,319 @@ function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSignup = async (e) => {
     e.preventDefault();
     setError("");
 
-    // Check password confirmation
+    if (!name || !email || !password || !confirmPassword) {
+      setError("Please fill in all fields.");
+      return;
+    }
+
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError("Passwords do not match.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
       return;
     }
 
     try {
-      // Send signup data to backend
-      await signupUser(name, email, password);
+      setLoading(true);
 
-      alert("Account created successfully!");
+      await signupUser({
+        name,
+        email,
+        password,
+      });
 
-      // Go to login page
       navigate("/login");
     } catch (err) {
-      setError(err.message);
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          "Unable to create account."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
+    <div className="auth-container">
 
-        <h1>Create Account</h1>
+      {/* LEFT SIDE */}
+      <div className="auth-visual">
 
-        <p className="auth-subtitle">
-          Create your account to start analyzing contracts with AI.
-        </p>
+        <div className="gradient-orb orb-one"></div>
+        <div className="gradient-orb orb-two"></div>
+        <div className="gradient-orb orb-three"></div>
 
-        <form onSubmit={handleSignup}>
+        <div className="grid-pattern"></div>
 
-          {/* Full Name */}
-          <label>Full Name</label>
+        <div className="visual-content">
 
-          <input
-            type="text"
-            placeholder="Enter your full name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
+          <div className="brand-mark">
+            AI
+          </div>
 
-          {/* Email */}
-          <label>Email</label>
+          <h1>
+            Understand Your
+            <br />
+            Contracts.
+            <br />
+            <span>Smarter.</span>
+          </h1>
 
-          <input
-            type="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+          <p>
+            Analyze contracts with AI and discover important
+            clauses, risks and insights in seconds.
+          </p>
 
-          {/* Password */}
-          <label>Password</label>
+          <div className="feature-list">
 
-          <input
-            type="password"
-            placeholder="Create a password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+            <div className="feature-item">
+              <span>✓</span>
+              AI-powered contract analysis
+            </div>
 
-          {/* Confirm Password */}
-          <label>Confirm Password</label>
+            <div className="feature-item">
+              <span>✓</span>
+              Identify potential risks
+            </div>
 
-          <input
-            type="password"
-            placeholder="Confirm your password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-          />
+            <div className="feature-item">
+              <span>✓</span>
+              Simple and easy-to-understand insights
+            </div>
 
-          {/* Error Message */}
-          {error && (
-            <p className="error-message">
-              {error}
-            </p>
-          )}
+          </div>
 
-          {/* Create Account Button */}
-          <button type="submit">
-            Create Account
-          </button>
+        </div>
 
-        </form>
-
-        <p className="auth-footer">
-          Already have an account?{" "}
-          <Link to="/login">Login</Link>
-        </p>
+        <div className="visual-footer">
+          AI Contract Analyzer
+        </div>
 
       </div>
+
+
+      {/* RIGHT SIDE */}
+      <div className="auth-form-section">
+
+        <div className="auth-form-wrapper">
+
+          <div className="mobile-brand">
+            AI Contract Analyzer
+          </div>
+
+          <div className="auth-heading">
+
+            <h2>
+              Create Your Account ✨
+            </h2>
+
+            <p>
+              Create an account to start analyzing your contracts.
+            </p>
+
+          </div>
+
+
+          <form onSubmit={handleSignup}>
+
+            {/* FULL NAME */}
+            <div className="input-group">
+
+              <label htmlFor="name">
+                Full Name
+              </label>
+
+              <div className="input-wrapper">
+
+                <span className="input-icon">
+                  👤
+                </span>
+
+                <input
+                  id="name"
+                  type="text"
+                  placeholder="Enter your full name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+
+              </div>
+
+            </div>
+
+
+            {/* EMAIL */}
+            <div className="input-group">
+
+              <label htmlFor="email">
+                Email Address
+              </label>
+
+              <div className="input-wrapper">
+
+                <span className="input-icon">
+                  ✉
+                </span>
+
+                <input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+
+              </div>
+
+            </div>
+
+
+            {/* PASSWORD */}
+            <div className="input-group">
+
+              <label htmlFor="password">
+                Password
+              </label>
+
+              <div className="input-wrapper">
+
+                <span className="input-icon">
+                  🔒
+                </span>
+
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Create a password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() =>
+                    setShowPassword(!showPassword)
+                  }
+                >
+                  {showPassword ? "🙈" : "👁"}
+                </button>
+
+              </div>
+
+            </div>
+
+
+            {/* CONFIRM PASSWORD */}
+            <div className="input-group">
+
+              <label htmlFor="confirmPassword">
+                Confirm Password
+              </label>
+
+              <div className="input-wrapper">
+
+                <span className="input-icon">
+                  🔒
+                </span>
+
+                <input
+                  id="confirmPassword"
+                  type={
+                    showConfirmPassword
+                      ? "text"
+                      : "password"
+                  }
+                  placeholder="Confirm your password"
+                  value={confirmPassword}
+                  onChange={(e) =>
+                    setConfirmPassword(e.target.value)
+                  }
+                />
+
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() =>
+                    setShowConfirmPassword(
+                      !showConfirmPassword
+                    )
+                  }
+                >
+                  {showConfirmPassword ? "🙈" : "👁"}
+                </button>
+
+              </div>
+
+            </div>
+
+
+            {/* ERROR */}
+            {error && (
+              <div className="auth-error">
+                {error}
+              </div>
+            )}
+
+
+            {/* SIGNUP BUTTON */}
+            <button
+              type="submit"
+              className="login-button"
+              disabled={loading}
+            >
+
+              {loading ? (
+                <span className="loading-content">
+                  <span className="spinner"></span>
+                  Creating account...
+                </span>
+              ) : (
+                "Create Account →"
+              )}
+
+            </button>
+
+          </form>
+
+
+          {/* LOGIN SWITCH */}
+          <div className="auth-switch">
+
+            <span>
+              Already have an account?
+            </span>
+
+            <Link to="/login">
+              Login
+            </Link>
+
+          </div>
+
+
+          <div className="secure-text">
+            🔐 Your information is securely protected.
+          </div>
+
+        </div>
+
+      </div>
+
     </div>
   );
 }
