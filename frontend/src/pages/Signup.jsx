@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { signUp, confirmSignUp, signIn, getCurrentUser, fetchUserAttributes } from "aws-amplify/auth";
+import { signUp, confirmSignUp } from "aws-amplify/auth";
 
 function Signup() {
   const navigate = useNavigate();
@@ -21,11 +21,27 @@ function Signup() {
   const [confirmationCode, setConfirmationCode] = useState("");
   const [resendMessage, setResendMessage] = useState("");
 
+  // Password Policy: 8+ chars, upper, lower, number, special char
+  const validatePassword = (pass) => {
+    const minLength = pass.length >= 8;
+    const hasUpper = /[A-Z]/.test(pass);
+    const hasLower = /[a-z]/.test(pass);
+    const hasNumber = /[0-9]/.test(pass);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(pass);
+
+    if (!minLength) return "Password must be at least 8 characters long.";
+    if (!hasUpper) return "Password must contain at least one uppercase letter (A-Z).";
+    if (!hasLower) return "Password must contain at least one lowercase letter (a-z).";
+    if (!hasNumber) return "Password must contain at least one number (0-9).";
+    if (!hasSpecial) return "Password must contain at least one special character (@, #, $, etc.).";
+    return null;
+  };
+
   const handleSignup = async (e) => {
     e.preventDefault();
     setError("");
 
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
       setError("Please fill in all fields.");
       return;
     }
@@ -35,8 +51,9 @@ function Signup() {
       return;
     }
 
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 
@@ -57,10 +74,14 @@ function Signup() {
       if (!isSignUpComplete && nextStep?.signUpStep === "CONFIRM_SIGN_UP") {
         setIsVerifying(true);
       } else {
-        navigate("/login");
+        navigate("/login", { state: { message: "Account created! Please sign in." } });
       }
     } catch (err) {
-      setError(err.message || "Unable to create account.");
+      if (err.name === "UsernameExistsException") {
+        setError("An account with this email already exists. Please login instead.");
+      } else {
+        setError(err.message || "Unable to create account.");
+      }
     } finally {
       setLoading(false);
     }
@@ -70,7 +91,7 @@ function Signup() {
     e.preventDefault();
     setError("");
 
-    if (!confirmationCode) {
+    if (!confirmationCode.trim()) {
       setError("Please enter the verification code.");
       return;
     }
@@ -84,43 +105,12 @@ function Signup() {
         confirmationCode: confirmationCode.trim(),
       });
 
-      // 2. Automatically sign in right away
-      await signIn({
-        username: email.trim(),
-        password: password,
+      // 2. Redirect to LOGIN page (NOT directly to dashboard)
+      navigate("/login", { 
+        state: { message: "Email verified successfully! Please log in with your credentials." } 
       });
-
-      // 3. Fetch user details & sync to PostgreSQL backend
-      let userId = email.trim();
-      let userName = name.trim() || email.split("@")[0];
-
-      try {
-        const currentUser = await getCurrentUser();
-        userId = currentUser.userId || currentUser.username || userId;
-        const attributes = await fetchUserAttributes();
-        if (attributes.name) userName = attributes.name;
-      } catch (attrErr) {
-        console.warn("Attribute retrieval warning:", attrErr);
-      }
-
-      const userData = {
-        id: userId,
-        email: email.trim(),
-        name: userName,
-      };
-
-      sessionStorage.setItem("user", JSON.stringify(userData));
-
-      fetch("http://localhost:8000/api/auth/sync-user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(userData),
-      }).catch((err) => console.error("PostgreSQL sync error:", err));
-
-      // 4. Smooth redirect directly to dashboard
-      navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError(err.message || "Invalid verification code.");
+      setError(err.message || "Invalid or expired verification code.");
     } finally {
       setLoading(false);
     }
@@ -214,7 +204,7 @@ function Signup() {
                     <input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      placeholder="Create a password"
+                      placeholder="Create a password (min. 8 chars, 1 uppercase, 1 special)"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                     />
@@ -293,10 +283,10 @@ function Signup() {
                   {loading ? (
                     <span className="loading-content">
                       <span className="spinner"></span>
-                      Verifying & Logging In...
+                      Verifying...
                     </span>
                   ) : (
-                    "Confirm & Go to Dashboard →"
+                    "Confirm & Proceed to Login →"
                   )}
                 </button>
               </form>

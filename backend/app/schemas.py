@@ -6,6 +6,10 @@ class UserSyncRequest(BaseModel):
     id: str
     email: EmailStr
     name: Optional[str] = None
+    is_active: Optional[bool] = True
+
+class UserLogoutRequest(BaseModel):
+    id: str
 
 class UserResponse(BaseModel):
     id: str

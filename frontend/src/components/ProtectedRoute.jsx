@@ -6,10 +6,17 @@ export default function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div style={{ padding: "2rem", textAlign: "center" }}>Loading session...</div>;
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
+        <h3>Loading session...</h3>
+      </div>
+    );
   }
 
-  if (!user) {
+  // Check state OR storage fallback
+  const storedUser = localStorage.getItem("user") || sessionStorage.getItem("user");
+
+  if (!user && !storedUser) {
     return <Navigate to="/login" replace />;
   }
 
