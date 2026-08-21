@@ -24,8 +24,8 @@ def sync_user(db: Session, user_data: UserSyncRequest) -> User:
             )
             db.add(user)
         else:
-            # Update fields
             user.last_login = now
+            user.is_active = True
             if user_data.name:
                 user.name = user_data.name
             if user_data.id and user.id != user_data.id:
@@ -39,17 +39,30 @@ def sync_user(db: Session, user_data: UserSyncRequest) -> User:
         raise
 
 def set_user_inactive(db: Session, user_id: str):
-    user = db.query(User).filter(User.id == user_id).first()
-    if user:
-        user.is_active = False
-        db.commit()
-        db.refresh(user)
-    return user
+    try:
+        user = db.query(User).filter(
+            or_(User.id == user_id, User.email == user_id)
+        ).first()
+        if user:
+            user.is_active = False
+            db.commit()
+            db.refresh(user)
+            return user
+        return None
+    except Exception:
+        db.rollback()
+        raise
 
-def delete_user_from_db(db: Session, user_id: str):
-    user = db.query(User).filter(User.id == user_id).first()
-    if user:
-        db.delete(user)
-        db.commit()
-        return True
-    return False
+def delete_user_from_db(db: Session, user_id: str) -> bool:
+    try:
+        user = db.query(User).filter(
+            or_(User.id == user_id, User.email == user_id)
+        ).first()
+        if user:
+            db.delete(user)
+            db.commit()
+            return True
+        return False
+    except Exception:
+        db.rollback()
+        raise

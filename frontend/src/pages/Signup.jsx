@@ -21,21 +21,16 @@ function Signup() {
   const [confirmationCode, setConfirmationCode] = useState("");
   const [resendMessage, setResendMessage] = useState("");
 
-  // Password Policy: 8+ chars, upper, lower, number, special char
-  const validatePassword = (pass) => {
-    const minLength = pass.length >= 8;
-    const hasUpper = /[A-Z]/.test(pass);
-    const hasLower = /[a-z]/.test(pass);
-    const hasNumber = /[0-9]/.test(pass);
-    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(pass);
-
-    if (!minLength) return "Password must be at least 8 characters long.";
-    if (!hasUpper) return "Password must contain at least one uppercase letter (A-Z).";
-    if (!hasLower) return "Password must contain at least one lowercase letter (a-z).";
-    if (!hasNumber) return "Password must contain at least one number (0-9).";
-    if (!hasSpecial) return "Password must contain at least one special character (@, #, $, etc.).";
-    return null;
+  // Live password validation rules
+  const rules = {
+    length: password.length >= 8,
+    upper: /[A-Z]/.test(password),
+    lower: /[a-z]/.test(password),
+    number: /[0-9]/.test(password),
+    special: /[!@#$%^&*(),.?":{}|<>]/.test(password),
   };
+
+  const isPasswordValid = Object.values(rules).every(Boolean);
 
   const handleSignup = async (e) => {
     e.preventDefault();
@@ -46,14 +41,13 @@ function Signup() {
       return;
     }
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+    if (!isPasswordValid) {
+      setError("Please meet all the password requirements below.");
       return;
     }
 
-    const passwordError = validatePassword(password);
-    if (passwordError) {
-      setError(passwordError);
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
       return;
     }
 
@@ -99,13 +93,11 @@ function Signup() {
     try {
       setLoading(true);
 
-      // 1. Confirm code in Cognito
       await confirmSignUp({
         username: email.trim(),
         confirmationCode: confirmationCode.trim(),
       });
 
-      // 2. Redirect to LOGIN page (NOT directly to dashboard)
       navigate("/login", { 
         state: { message: "Email verified successfully! Please log in with your credentials." } 
       });
@@ -204,7 +196,7 @@ function Signup() {
                     <input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      placeholder="Create a password (min. 8 chars, 1 uppercase, 1 special)"
+                      placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                     />
@@ -217,6 +209,38 @@ function Signup() {
                     </button>
                   </div>
                 </div>
+
+                {/* Password Requirements Helper Box */}
+                {password.length > 0 && (
+                  <div style={{
+                    backgroundColor: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                    padding: "10px 14px",
+                    marginTop: "-8px",
+                    marginBottom: "12px",
+                    fontSize: "0.82rem",
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "6px"
+                  }}>
+                    <div style={{ color: rules.length ? "#10b981" : "#64748b" }}>
+                      {rules.length ? "✓" : "○"} At least 8 characters
+                    </div>
+                    <div style={{ color: rules.upper ? "#10b981" : "#64748b" }}>
+                      {rules.upper ? "✓" : "○"} 1 uppercase letter (A-Z)
+                    </div>
+                    <div style={{ color: rules.lower ? "#10b981" : "#64748b" }}>
+                      {rules.lower ? "✓" : "○"} 1 lowercase letter (a-z)
+                    </div>
+                    <div style={{ color: rules.number ? "#10b981" : "#64748b" }}>
+                      {rules.number ? "✓" : "○"} 1 number (0-9)
+                    </div>
+                    <div style={{ color: rules.special ? "#10b981" : "#64748b", gridColumn: "span 2" }}>
+                      {rules.special ? "✓" : "○"} 1 special character (!@#$%^&*)
+                    </div>
+                  </div>
+                )}
 
                 <div className="input-group">
                   <label htmlFor="confirmPassword">Confirm Password</label>

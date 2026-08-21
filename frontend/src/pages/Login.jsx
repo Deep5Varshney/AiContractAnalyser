@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { signIn, signOut, getCurrentUser, fetchUserAttributes } from "aws-amplify/auth";
 import { useAuth } from "../context/AuthContext";
@@ -8,18 +8,21 @@ function Login() {
   const location = useLocation();
   const { checkUser } = useAuth();
 
-  const [email, setEmail] = useState(() => {
-    return localStorage.getItem("remembered_email") || "";
-  });
+  // Initialize strictly from remembered storage
   const [rememberMe, setRememberMe] = useState(() => {
-    return localStorage.getItem("remember_me_preference") === "true";
+    return localStorage.getItem("contract_analyzer_remember_me") === "true";
   });
+
+  const [email, setEmail] = useState(() => {
+    const isRemembered = localStorage.getItem("contract_analyzer_remember_me") === "true";
+    return isRemembered ? (localStorage.getItem("contract_analyzer_email") || "") : "";
+  });
+
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Read any redirect messages from Signup or ForgotPassword
   const successMessage = location.state?.message || "";
 
   const handleLogin = async (e) => {
@@ -34,14 +37,14 @@ function Login() {
     try {
       setLoading(true);
 
-      // 1. Clear any prior stale session
+      // Clear any prior stale session
       try {
         await signOut();
       } catch {
         // Safe to ignore
       }
 
-      // 2. Authenticate with Cognito (Fails if either email or password is wrong)
+      // Authenticate with Cognito
       const signInOutput = await signIn({
         username: email.trim(),
         password: password,
@@ -57,7 +60,7 @@ function Login() {
         return;
       }
 
-      // 3. Fetch attributes
+      // Fetch user attributes
       let userId = email.trim();
       let userName = email.split("@")[0];
 
@@ -76,18 +79,19 @@ function Login() {
         name: userName,
       };
 
-      // 4. Save to storage & manage Remember Me preferences
+      // Handle explicit Remember Me saving
       if (rememberMe) {
-        localStorage.setItem("remembered_email", email.trim());
-        localStorage.setItem("remember_me_preference", "true");
+        localStorage.setItem("contract_analyzer_remember_me", "true");
+        localStorage.setItem("contract_analyzer_email", email.trim());
         localStorage.setItem("user", JSON.stringify(userData));
       } else {
-        localStorage.removeItem("remembered_email");
-        localStorage.removeItem("remember_me_preference");
+        localStorage.removeItem("contract_analyzer_remember_me");
+        localStorage.removeItem("contract_analyzer_email");
+        localStorage.removeItem("user");
         sessionStorage.setItem("user", JSON.stringify(userData));
       }
 
-      // 5. Sync with PostgreSQL backend (sets is_active=True)
+      // Sync with PostgreSQL backend
       try {
         await fetch("http://localhost:8000/api/auth/sync-user", {
           method: "POST",
@@ -98,10 +102,7 @@ function Login() {
         console.error("DB Sync error:", dbErr);
       }
 
-      // 6. Update global AuthContext state
       await checkUser();
-
-      // 7. Route to dashboard
       navigate("/dashboard", { replace: true });
     } catch (err) {
       console.error("Login failed:", err);
@@ -117,7 +118,7 @@ function Login() {
 
   return (
     <div className="auth-container">
-      {/* Visual left section */}
+      {/* Left visual side */}
       <div className="auth-visual">
         <div className="gradient-orb orb-one"></div>
         <div className="gradient-orb orb-two"></div>
@@ -155,7 +156,7 @@ function Login() {
         <div className="visual-footer">AI Contract Analyzer</div>
       </div>
 
-      {/* Form section */}
+      {/* Right form side */}
       <div className="auth-form-section">
         <div className="auth-form-wrapper">
           <div className="mobile-brand">AI Contract Analyzer</div>
@@ -170,7 +171,7 @@ function Login() {
             </div>
           )}
 
-          <form onSubmit={handleLogin}>
+          <form onSubmit={handleLogin} autoComplete="off">
             <div className="input-group">
               <label htmlFor="email">Email Address</label>
               <div className="input-wrapper">
@@ -181,6 +182,7 @@ function Login() {
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="off"
                 />
               </div>
             </div>
@@ -195,6 +197,7 @@ function Login() {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
                 />
                 <button
                   type="button"

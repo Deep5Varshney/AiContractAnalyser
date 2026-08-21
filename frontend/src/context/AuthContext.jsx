@@ -28,24 +28,28 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
+      // 1. Retrieve current user identity BEFORE wiping storage
       const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-      
-      // Update PostgreSQL: set is_active = False
-      if (storedUser?.id) {
+      const userId = user?.userId || user?.username || storedUser?.id || storedUser?.email;
+
+      if (userId) {
         await fetch("http://localhost:8000/api/auth/logout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: storedUser.id }),
-        }).catch((err) => console.error("Logout status sync error:", err));
+          body: JSON.stringify({ id: userId }),
+        });
       }
 
+      // 2. Sign out of AWS Amplify
       await amplifySignOut();
     } catch (e) {
-      console.error(e);
+      console.error("Logout error:", e);
+    } finally {
+      // 3. Clear session storage
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      setUser(null);
     }
-    localStorage.removeItem("user");
-    sessionStorage.removeItem("user");
-    setUser(null);
   };
 
   return (
