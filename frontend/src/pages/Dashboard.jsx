@@ -1,21 +1,20 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { signOut } from "aws-amplify/auth";
+import { useAuth } from "../context/AuthContext";
 
 function Dashboard() {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [selectedFile, setSelectedFile] = useState(null);
   const [analysisStarted, setAnalysisStarted] = useState(false);
 
   const handleLogout = async () => {
     try {
-      await signOut();
-      localStorage.removeItem("user");
-      sessionStorage.removeItem("user");
-      navigate("/login");
+      await logout();
+      navigate("/login", { replace: true });
     } catch (error) {
-      console.error("Error signing out: ", error);
-      navigate("/login");
+      console.error("Error signing out:", error);
+      navigate("/login", { replace: true });
     }
   };
 

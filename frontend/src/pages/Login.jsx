@@ -8,14 +8,18 @@ function Login() {
   const location = useLocation();
   const { checkUser } = useAuth();
 
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => {
+    return localStorage.getItem("remembered_email") || "";
+  });
+  const [rememberMe, setRememberMe] = useState(() => {
+    return localStorage.getItem("remember_me_preference") === "true";
+  });
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Read any redirect messages from Signup
+  // Read any redirect messages from Signup or ForgotPassword
   const successMessage = location.state?.message || "";
 
   const handleLogin = async (e) => {
@@ -72,10 +76,14 @@ function Login() {
         name: userName,
       };
 
-      // 4. Save to storage
+      // 4. Save to storage & manage Remember Me preferences
       if (rememberMe) {
+        localStorage.setItem("remembered_email", email.trim());
+        localStorage.setItem("remember_me_preference", "true");
         localStorage.setItem("user", JSON.stringify(userData));
       } else {
+        localStorage.removeItem("remembered_email");
+        localStorage.removeItem("remember_me_preference");
         sessionStorage.setItem("user", JSON.stringify(userData));
       }
 
@@ -97,7 +105,6 @@ function Login() {
       navigate("/dashboard", { replace: true });
     } catch (err) {
       console.error("Login failed:", err);
-      // Explicit error handling for bad credentials
       if (err.name === "NotAuthorizedException" || err.name === "UserNotFoundException") {
         setError("Incorrect email or password.");
       } else {
@@ -209,13 +216,9 @@ function Login() {
                 <span>Remember me</span>
               </label>
 
-              <button
-                type="button"
-                className="forgot-button"
-                onClick={() => alert("Password reset feature coming soon!")}
-              >
+              <Link to="/forgot-password" className="forgot-button">
                 Forgot password?
-              </button>
+              </Link>
             </div>
 
             {error && <div className="auth-error">{error}</div>}
