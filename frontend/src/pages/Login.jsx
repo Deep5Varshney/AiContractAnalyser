@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { loginUser } from "../services/api";
+import { signIn, getCurrentUser, fetchUserAttributes } from "aws-amplify/auth";
 
 function Login() {
   const navigate = useNavigate();
@@ -24,23 +24,47 @@ function Login() {
     try {
       setLoading(true);
 
-      const data = await loginUser({
-        email,
-        password,
+      // 1. Authenticate with AWS Cognito
+      const signInResult = await signIn({
+        username: email,
+        password: password,
       });
 
+      // 2. Fetch authenticated Cognito details
+      const currentUser = await getCurrentUser();
+      const attributes = await fetchUserAttributes();
+
+      const userData = {
+        id: currentUser.userId,
+        email: attributes.email || email,
+        name: attributes.name || (attributes.email ? attributes.email.split("@")[0] : "User"),
+      };
+
+      // 3. Sync & store user into PostgreSQL via FastAPI backend
+      try {
+        await fetch("http://localhost:8000/api/auth/sync-user", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(userData),
+        });
+      } catch (syncErr) {
+        console.error("PostgreSQL sync warning:", syncErr);
+      }
+
+      // 4. Save session state based on Remember Me
       if (rememberMe) {
-        localStorage.setItem("user", JSON.stringify(data.user));
+        localStorage.setItem("user", JSON.stringify(userData));
       } else {
-        sessionStorage.setItem("user", JSON.stringify(data.user));
+        sessionStorage.setItem("user", JSON.stringify(userData));
       }
 
       navigate("/dashboard");
     } catch (err) {
       setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Invalid email or password."
+        err.message ||
+        "Invalid email or password."
       );
     } finally {
       setLoading(false);
@@ -66,12 +90,12 @@ function Login() {
           </div>
 
           <h1>
-         Understand Your
-          <br />
-         Contracts.
-          <br />
-          <span>Smarter.</span>
-           </h1>
+            Understand Your
+            <br />
+            Contracts.
+            <br />
+            <span>Smarter.</span>
+          </h1>
 
           <p>
             Analyze contracts with AI and discover important

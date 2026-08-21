@@ -1,15 +1,43 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { fetchUserAttributes } from "aws-amplify/auth";
 
 function Profile() {
   const [editing, setEditing] = useState(false);
 
   const [profile, setProfile] = useState({
-    name: "Bhoomika Mittal",
-    email: "bhoomika@example.com",
+    name: "User",
+    email: "",
     phone: "+91 98765 43210",
     company: "AI Contract Analyzer",
     role: "Contract Analyst",
   });
+
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const attributes = await fetchUserAttributes();
+        const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+
+        setProfile((prev) => ({
+          ...prev,
+          name: attributes.name || storedUser.name || "User",
+          email: attributes.email || storedUser.email || "",
+        }));
+      } catch (err) {
+        // Fallback to local session if offline
+        const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+        if (storedUser.email) {
+          setProfile((prev) => ({
+            ...prev,
+            name: storedUser.name || "User",
+            email: storedUser.email || "",
+          }));
+        }
+      }
+    };
+
+    loadUserData();
+  }, []);
 
   const handleChange = (e) => {
     setProfile({
@@ -67,7 +95,7 @@ function Profile() {
         <div className="profile-card profile-summary">
 
           <div className="profile-avatar">
-            {profile.name.charAt(0)}
+            {profile.name ? profile.name.charAt(0).toUpperCase() : "U"}
           </div>
 
           <h2>{profile.name}</h2>

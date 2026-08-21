@@ -1,9 +1,23 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { signOut } from "aws-amplify/auth";
 
 function Dashboard() {
+  const navigate = useNavigate();
   const [selectedFile, setSelectedFile] = useState(null);
   const [analysisStarted, setAnalysisStarted] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      navigate("/login");
+    } catch (error) {
+      console.error("Error signing out: ", error);
+      navigate("/login");
+    }
+  };
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -59,7 +73,7 @@ function Dashboard() {
 
         </nav>
 
-        <button className="logout-btn">
+        <button className="logout-btn" onClick={handleLogout}>
           Logout
         </button>
 
