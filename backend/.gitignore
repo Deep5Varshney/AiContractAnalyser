@@ -1,0 +1,36 @@
+# Virtual Environment (Removes the 2000+ files)
+venv/
+env/
+ENV/
+.venv/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+
+# Python Cache & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Distribution / Packaging
+build/
+dist/
+*.egg-info/
+
+# Unit test & coverage reports
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor/IDE configs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
