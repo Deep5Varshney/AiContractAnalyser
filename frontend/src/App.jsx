@@ -7,6 +7,7 @@ import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import MyContracts from "./pages/MyContracts";
+import ForgotPassword from "./pages/ForgotPassword";
 import "./App.css";
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
 
           {/* Protected Routes */}
           <Route
