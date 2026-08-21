@@ -24,48 +24,62 @@ function Login() {
     try {
       setLoading(true);
 
-      // 1. Authenticate with AWS Cognito
-      const signInResult = await signIn({
-        username: email,
+      // 1. Sign in with Cognito
+      const signInOutput = await signIn({
+        username: email.trim(),
         password: password,
       });
 
-      // 2. Fetch authenticated Cognito details
-      const currentUser = await getCurrentUser();
-      const attributes = await fetchUserAttributes();
-
-      const userData = {
-        id: currentUser.userId,
-        email: attributes.email || email,
-        name: attributes.name || (attributes.email ? attributes.email.split("@")[0] : "User"),
-      };
-
-      // 3. Sync & store user into PostgreSQL via FastAPI backend
-      try {
-        await fetch("http://localhost:8000/api/auth/sync-user", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(userData),
-        });
-      } catch (syncErr) {
-        console.error("PostgreSQL sync warning:", syncErr);
+      // 2. Check if user is fully authenticated or requires further verification
+      if (!signInOutput.isSignedIn && signInOutput.nextStep?.signInStep === "CONFIRM_SIGN_UP") {
+        setError("Account not verified yet. Please verify your email code first.");
+        navigate("/signup");
+        return;
       }
 
-      // 4. Save session state based on Remember Me
+      // 3. Extract user info safely
+      let userId = email;
+      let userName = email.split("@")[0];
+
+      try {
+        const currentUser = await getCurrentUser();
+        userId = currentUser.userId || currentUser.username || email;
+      } catch (uErr) {
+        console.warn("Could not get current user details, using fallback:", uErr);
+      }
+
+      try {
+        const attributes = await fetchUserAttributes();
+        if (attributes.name) userName = attributes.name;
+      } catch (aErr) {
+        console.warn("Could not fetch user attributes:", aErr);
+      }
+
+      const userData = {
+        id: userId,
+        email: email.trim(),
+        name: userName,
+      };
+
+      // 4. Save session locally
       if (rememberMe) {
         localStorage.setItem("user", JSON.stringify(userData));
       } else {
         sessionStorage.setItem("user", JSON.stringify(userData));
       }
 
+      // 5. Sync with PostgreSQL (non-blocking)
+      fetch("http://localhost:8000/api/auth/sync-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userData),
+      }).catch((syncErr) => console.error("Database sync error:", syncErr));
+
+      // 6. Redirect to Dashboard
       navigate("/dashboard");
     } catch (err) {
-      setError(
-        err.message ||
-        "Invalid email or password."
-      );
+      console.error("Login error details:", err);
+      setError(err.message || "Invalid email or password.");
     } finally {
       setLoading(false);
     }
