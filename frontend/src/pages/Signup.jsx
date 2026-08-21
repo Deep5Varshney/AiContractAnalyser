@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { signUp, confirmSignUp, resendSignUpCode } from "aws-amplify/auth";
+import { signUp, confirmSignUp, signIn, getCurrentUser, fetchUserAttributes } from "aws-amplify/auth";
 
 function Signup() {
   const navigate = useNavigate();
@@ -16,7 +16,7 @@ function Signup() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // State for Cognito Email Confirmation Step
+  // Verification state
   const [isVerifying, setIsVerifying] = useState(false);
   const [confirmationCode, setConfirmationCode] = useState("");
   const [resendMessage, setResendMessage] = useState("");
@@ -44,12 +44,12 @@ function Signup() {
       setLoading(true);
 
       const { isSignUpComplete, nextStep } = await signUp({
-        username: email,
+        username: email.trim(),
         password: password,
         options: {
           userAttributes: {
-            email: email,
-            name: name,
+            email: email.trim(),
+            name: name.trim(),
           },
         },
       });
@@ -60,10 +60,7 @@ function Signup() {
         navigate("/login");
       }
     } catch (err) {
-      setError(
-        err.message ||
-          "Unable to create account."
-      );
+      setError(err.message || "Unable to create account.");
     } finally {
       setLoading(false);
     }
@@ -80,12 +77,48 @@ function Signup() {
 
     try {
       setLoading(true);
+
+      // 1. Confirm code in Cognito
       await confirmSignUp({
-        username: email,
+        username: email.trim(),
         confirmationCode: confirmationCode.trim(),
       });
-      alert("Account verified successfully! Please sign in.");
-      navigate("/login");
+
+      // 2. Automatically sign in right away
+      await signIn({
+        username: email.trim(),
+        password: password,
+      });
+
+      // 3. Fetch user details & sync to PostgreSQL backend
+      let userId = email.trim();
+      let userName = name.trim() || email.split("@")[0];
+
+      try {
+        const currentUser = await getCurrentUser();
+        userId = currentUser.userId || currentUser.username || userId;
+        const attributes = await fetchUserAttributes();
+        if (attributes.name) userName = attributes.name;
+      } catch (attrErr) {
+        console.warn("Attribute retrieval warning:", attrErr);
+      }
+
+      const userData = {
+        id: userId,
+        email: email.trim(),
+        name: userName,
+      };
+
+      sessionStorage.setItem("user", JSON.stringify(userData));
+
+      fetch("http://localhost:8000/api/auth/sync-user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userData),
+      }).catch((err) => console.error("PostgreSQL sync error:", err));
+
+      // 4. Smooth redirect directly to dashboard
+      navigate("/dashboard", { replace: true });
     } catch (err) {
       setError(err.message || "Invalid verification code.");
     } finally {
@@ -93,34 +126,17 @@ function Signup() {
     }
   };
 
-  const handleResend = async () => {
-    try {
-      await resendSignUpCode({ username: email });
-      setResendMessage("Verification code resent to your email.");
-      setTimeout(() => setResendMessage(""), 4000);
-    } catch (err) {
-      setError(err.message || "Failed to resend code.");
-    }
-  };
-
   return (
     <div className="auth-container">
-
       {/* LEFT SIDE */}
       <div className="auth-visual">
-
         <div className="gradient-orb orb-one"></div>
         <div className="gradient-orb orb-two"></div>
         <div className="gradient-orb orb-three"></div>
-
         <div className="grid-pattern"></div>
 
         <div className="visual-content">
-
-          <div className="brand-mark">
-            AI
-          </div>
-
+          <div className="brand-mark">AI</div>
           <h1>
             Understand Your
             <br />
@@ -128,79 +144,45 @@ function Signup() {
             <br />
             <span>Smarter.</span>
           </h1>
-
           <p>
             Analyze contracts with AI and discover important
             clauses, risks and insights in seconds.
           </p>
-
           <div className="feature-list">
-
             <div className="feature-item">
               <span>✓</span>
               AI-powered contract analysis
             </div>
-
             <div className="feature-item">
               <span>✓</span>
               Identify potential risks
             </div>
-
             <div className="feature-item">
               <span>✓</span>
               Simple and easy-to-understand insights
             </div>
-
           </div>
-
         </div>
-
-        <div className="visual-footer">
-          AI Contract Analyzer
-        </div>
-
+        <div className="visual-footer">AI Contract Analyzer</div>
       </div>
-
 
       {/* RIGHT SIDE */}
       <div className="auth-form-section">
-
         <div className="auth-form-wrapper">
-
-          <div className="mobile-brand">
-            AI Contract Analyzer
-          </div>
+          <div className="mobile-brand">AI Contract Analyzer</div>
 
           {!isVerifying ? (
             <>
               <div className="auth-heading">
-
-                <h2>
-                  Create Your Account ✨
-                </h2>
-
-                <p>
-                  Create an account to start analyzing your contracts.
-                </p>
-
+                <h2>Create Your Account ✨</h2>
+                <p>Create an account to start analyzing your contracts.</p>
               </div>
 
-
               <form onSubmit={handleSignup}>
-
-                {/* FULL NAME */}
                 <div className="input-group">
-
-                  <label htmlFor="name">
-                    Full Name
-                  </label>
-
+                  <label htmlFor="name">Full Name</label>
                   <div className="input-wrapper">
-
-                    <span className="input-icon">
-                      👤
-                    </span>
-
+                    <span className="input-icon">👤</span>
                     <input
                       id="name"
                       type="text"
@@ -208,25 +190,13 @@ function Signup() {
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                     />
-
                   </div>
-
                 </div>
 
-
-                {/* EMAIL */}
                 <div className="input-group">
-
-                  <label htmlFor="email">
-                    Email Address
-                  </label>
-
+                  <label htmlFor="email">Email Address</label>
                   <div className="input-wrapper">
-
-                    <span className="input-icon">
-                      ✉
-                    </span>
-
+                    <span className="input-icon">✉</span>
                     <input
                       id="email"
                       type="email"
@@ -234,25 +204,13 @@ function Signup() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                     />
-
                   </div>
-
                 </div>
 
-
-                {/* PASSWORD */}
                 <div className="input-group">
-
-                  <label htmlFor="password">
-                    Password
-                  </label>
-
+                  <label htmlFor="password">Password</label>
                   <div className="input-wrapper">
-
-                    <span className="input-icon">
-                      🔒
-                    </span>
-
+                    <span className="input-icon">🔒</span>
                     <input
                       id="password"
                       type={showPassword ? "text" : "password"}
@@ -260,81 +218,40 @@ function Signup() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                     />
-
                     <button
                       type="button"
                       className="password-toggle"
-                      onClick={() =>
-                        setShowPassword(!showPassword)
-                      }
+                      onClick={() => setShowPassword(!showPassword)}
                     >
                       {showPassword ? "🙈" : "👁"}
                     </button>
-
                   </div>
-
                 </div>
 
-
-                {/* CONFIRM PASSWORD */}
                 <div className="input-group">
-
-                  <label htmlFor="confirmPassword">
-                    Confirm Password
-                  </label>
-
+                  <label htmlFor="confirmPassword">Confirm Password</label>
                   <div className="input-wrapper">
-
-                    <span className="input-icon">
-                      🔒
-                    </span>
-
+                    <span className="input-icon">🔒</span>
                     <input
                       id="confirmPassword"
-                      type={
-                        showConfirmPassword
-                          ? "text"
-                          : "password"
-                      }
+                      type={showConfirmPassword ? "text" : "password"}
                       placeholder="Confirm your password"
                       value={confirmPassword}
-                      onChange={(e) =>
-                        setConfirmPassword(e.target.value)
-                      }
+                      onChange={(e) => setConfirmPassword(e.target.value)}
                     />
-
                     <button
                       type="button"
                       className="password-toggle"
-                      onClick={() =>
-                        setShowConfirmPassword(
-                          !showConfirmPassword
-                        )
-                      }
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     >
                       {showConfirmPassword ? "🙈" : "👁"}
                     </button>
-
                   </div>
-
                 </div>
 
+                {error && <div className="auth-error">{error}</div>}
 
-                {/* ERROR */}
-                {error && (
-                  <div className="auth-error">
-                    {error}
-                  </div>
-                )}
-
-
-                {/* SIGNUP BUTTON */}
-                <button
-                  type="submit"
-                  className="login-button"
-                  disabled={loading}
-                >
-
+                <button type="submit" className="login-button" disabled={loading}>
                   {loading ? (
                     <span className="loading-content">
                       <span className="spinner"></span>
@@ -343,13 +260,10 @@ function Signup() {
                   ) : (
                     "Create Account →"
                   )}
-
                 </button>
-
               </form>
             </>
           ) : (
-            /* CODE VERIFICATION SCREEN */
             <>
               <div className="auth-heading">
                 <h2>Verify Your Email ✉️</h2>
@@ -376,44 +290,29 @@ function Signup() {
                 {resendMessage && <div style={{ color: "#10b981", fontSize: "0.875rem", margin: "0.5rem 0" }}>{resendMessage}</div>}
 
                 <button type="submit" className="login-button" disabled={loading}>
-                  {loading ? "Verifying..." : "Confirm & Activate Account →"}
+                  {loading ? (
+                    <span className="loading-content">
+                      <span className="spinner"></span>
+                      Verifying & Logging In...
+                    </span>
+                  ) : (
+                    "Confirm & Go to Dashboard →"
+                  )}
                 </button>
-
-                <div style={{ marginTop: "1rem", textAlign: "center" }}>
-                  <button
-                    type="button"
-                    onClick={handleResend}
-                    style={{ background: "none", border: "none", color: "#6366f1", cursor: "pointer", fontSize: "0.9rem" }}
-                  >
-                    Didn't receive code? Resend Code
-                  </button>
-                </div>
               </form>
             </>
           )}
 
-          {/* LOGIN SWITCH */}
           <div className="auth-switch">
-
-            <span>
-              Already have an account?
-            </span>
-
-            <Link to="/login">
-              Login
-            </Link>
-
+            <span>Already have an account?</span>
+            <Link to="/login">Login</Link>
           </div>
-
 
           <div className="secure-text">
             🔐 Your information is securely protected.
           </div>
-
         </div>
-
       </div>
-
     </div>
   );
 }
