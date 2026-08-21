@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { signIn, getCurrentUser, fetchUserAttributes } from "aws-amplify/auth";
+import { signIn, signOut, getCurrentUser, fetchUserAttributes } from "aws-amplify/auth";
 
 function Login() {
   const navigate = useNavigate();
@@ -11,6 +11,19 @@ function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // If already logged in, redirect directly to dashboard
+  useEffect(() => {
+    const checkExistingSession = async () => {
+      try {
+        await getCurrentUser();
+        navigate("/dashboard");
+      } catch {
+        // No active session, stay on login
+      }
+    };
+    checkExistingSession();
+  }, [navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -24,26 +37,33 @@ function Login() {
     try {
       setLoading(true);
 
-      // 1. Sign in with Cognito
+      // 1. Clear any stuck or stale session first
+      try {
+        await signOut();
+      } catch {
+        // Safe to ignore if not signed in
+      }
+
+      // 2. Sign in with Cognito
       const signInOutput = await signIn({
         username: email.trim(),
         password: password,
       });
 
-      // 2. Check if user is fully authenticated or requires further verification
+      // 3. Handle unconfirmed signups
       if (!signInOutput.isSignedIn && signInOutput.nextStep?.signInStep === "CONFIRM_SIGN_UP") {
         setError("Account not verified yet. Please verify your email code first.");
         navigate("/signup");
         return;
       }
 
-      // 3. Extract user info safely
-      let userId = email;
+      // 4. Extract user info safely
+      let userId = email.trim();
       let userName = email.split("@")[0];
 
       try {
         const currentUser = await getCurrentUser();
-        userId = currentUser.userId || currentUser.username || email;
+        userId = currentUser.userId || currentUser.username || email.trim();
       } catch (uErr) {
         console.warn("Could not get current user details, using fallback:", uErr);
       }
@@ -61,21 +81,21 @@ function Login() {
         name: userName,
       };
 
-      // 4. Save session locally
+      // 5. Store session locally
       if (rememberMe) {
         localStorage.setItem("user", JSON.stringify(userData));
       } else {
         sessionStorage.setItem("user", JSON.stringify(userData));
       }
 
-      // 5. Sync with PostgreSQL (non-blocking)
+      // 6. Sync with PostgreSQL backend (non-blocking)
       fetch("http://localhost:8000/api/auth/sync-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(userData),
       }).catch((syncErr) => console.error("Database sync error:", syncErr));
 
-      // 6. Redirect to Dashboard
+      // 7. Direct navigation to dashboard
       navigate("/dashboard");
     } catch (err) {
       console.error("Login error details:", err);
