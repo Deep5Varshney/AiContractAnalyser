@@ -197,12 +197,13 @@ function Dashboard() {
         </section>
 
 
-        {/* ================= FEATURE CARDS ================= */}
+        {/* </main>
+        ================= FEATURE CARDS =================
         <section className="feature-grid" id="insights">
 
 
           {/* RISK ANALYSIS */}
-          <div className="feature-card">
+          {/* <div className="feature-card">
 
             <div className="feature-icon yellow">
               ⚠️
@@ -214,9 +215,9 @@ function Dashboard() {
 
             <p>
               Identify potential risks and important contract clauses.
-            </p>
+            </p> */} */}
 
-            <a href="#risk">
+            {/* <a href="#risk">
               Explore Risks →
             </a>
 
@@ -224,10 +225,10 @@ function Dashboard() {
 
 
           {/* AI INSIGHTS */}
-          <div className="feature-card">
+          {/* <div className="feature-card">
 
-            <div className="feature-icon blue">
-              🤖
+            <div className="feature-icon blue"> */}
+              {/* 🤖
             </div>
 
             <h3>
@@ -240,15 +241,15 @@ function Dashboard() {
 
             <a href="#ai-insights">
               View Insights →
-            </a>
+            </a> */} */}
 
-          </div>
+          {/* </div>
 
         </section>
 
 
         {/* ================= RECENT CONTRACTS ================= */}
-        <section className="recent-contracts">
+        {/* <section className="recent-contracts">
 
           <div className="recent-header">
 
@@ -258,22 +259,22 @@ function Dashboard() {
               </h2>
 
               <p>
-                Your recently analyzed documents
-              </p>
-            </div>
+                Your recently analyzed documents */}
+              {/* </p>
+            </div> */}
 
-            <Link to="/contracts">
+            {/* <Link to="/contracts">
               View All →
             </Link>
 
           </div>
 
 
-          <div className="recent-list">
+          <div className="recent-list"> */} */}
 
 
             {/* CONTRACT 1 */}
-            <div className="recent-contract">
+            {/* <div className="recent-contract">
 
               <div className="contract-left">
 
@@ -295,16 +296,16 @@ function Dashboard() {
 
               <div className="contract-status">
                 ✓ Analyzed
-              </div>
+              </div> */}
 
-              <Link to="/contracts">
+              {/* <Link to="/contracts">
                 View
               </Link>
 
-            </div>
+            </div> */}
 
 
-            {/* CONTRACT 2 */}
+            {/* CONTRACT 2
             <div className="recent-contract">
 
               <div className="contract-left">
@@ -313,30 +314,30 @@ function Dashboard() {
                   📄
                 </div>
 
-                <div>
-                  <h3>
-                    Internship Contract.pdf
-                  </h3>
+                // /
+              {/* //     <h3>
+              //       Internship Contract.pdf
+              //     </h3>
 
-                  <p>
-                    Analyzed yesterday
-                  </p>
-                </div>
+              //     <p>
+              //       Analyzed yesterday
+              //     </p>
+              //   </div>
 
-              </div>
+              // </div>
 
-              <div className="contract-status">
-                ✓ Analyzed
-              </div>
+              // <div className="contract-status">
+              //   ✓ Analyzed
+              // </div>
 
-              <Link to="/contracts">
+              // <Link to="/contracts">
                 View
               </Link>
 
-            </div>
+            </div> */} */}
 
 
-            {/* CONTRACT 3 */}
+            {/* CONTRACT 3
             <div className="recent-contract">
 
               <div className="contract-left">
@@ -351,8 +352,8 @@ function Dashboard() {
                   </h3>
 
                   <p>
-                    Analyzed 2 days ago
-                  </p>
+                    Analyzed 2 days ago */}
+                  {/* </p>
                 </div>
 
               </div>
@@ -369,7 +370,7 @@ function Dashboard() {
 
           </div>
 
-        </section>
+        </section> */}
 
 
         {/* ================= BOTTOM INFO ================= */}
