@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from botocore.config import Config
 from fastapi import FastAPI, Depends, HTTPException, APIRouter, HTTPException, status, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from groq import Groq
 from app.database import engine, Base, get_db, SessionLocal
@@ -488,3 +489,90 @@ async def compare_contract_versions(
     except Exception as e:
         print(f"Comparison error: {e}")
         raise HTTPException(status_code=500, detail="Failed to run AI version comparison.")
+
+@app.get("/api/contracts/{contract_id}/export/docx")
+async def export_contract_docx(contract_id: str, db: Session = Depends(get_db)):
+    # 1. Fetch contract and analysis result
+    contract = db.query(Contract).filter(Contract.id == contract_id).first()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    
+    analysis = db.query(ContractAnalysisResult).filter(ContractAnalysisResult.contract_id == contract_id).first()
+    
+    # 2. Extract data safely from analysis_json dictionary
+    summary_text = "No summary available."
+    risks_list = []
+    parties_list = []
+    deadlines_list = []
+    payment_terms_list = []
+    
+    if analysis and analysis.analysis_json:
+        data = analysis.analysis_json
+        summary_text = data.get("summary", "No summary available.")
+        risks_list = data.get("risks", [])
+        parties_list = data.get("parties", [])
+        deadlines_list = data.get("deadlines", [])
+        payment_terms_list = data.get("payment_terms", [])
+    elif analysis and hasattr(analysis, 'summary') and analysis.summary:
+        summary_text = analysis.summary
+
+    # 3. Build Word Document using python-docx
+    doc = docx.Document()
+    
+    # Header Information
+    doc.add_heading("Legal Co-Pilot Executive Report", level=1)
+    doc.add_paragraph(f"Contract File: {contract.file_name}")
+    doc.add_paragraph(f"Generated On: {contract.created_at if hasattr(contract, 'created_at') else 'N/A'}")
+    
+    # Executive Summary Section
+    doc.add_heading("📌 Executive Summary", level=2)
+    doc.add_paragraph(summary_text)
+    
+    # Risk Analysis & Clauses Section
+    doc.add_heading("⚠️ Risk Analysis & Key Clauses", level=2)
+    if risks_list and len(risks_list) > 0:
+        for r in risks_list:
+            p = doc.add_paragraph(style='List Bullet')
+            title = r.get('title', 'Clause Risk')
+            severity = r.get('severity', 'Medium').upper()
+            reason = r.get('reason', '')
+            recommendation = r.get('recommendation', '')
+            
+            p.add_run(f"{title} ({severity} Risk)\n").bold = True
+            if reason:
+                p.add_run(f"{reason}\n")
+            if recommendation:
+                p.add_run(f"💡 Recommendation: {recommendation}").italic = True
+    else:
+        doc.add_paragraph("No high-risk clauses or special remarks flagged.")
+
+    # Contracting Parties Section
+    if parties_list:
+        doc.add_heading("🤝 Contracting Parties", level=2)
+        for p in parties_list:
+            doc.add_paragraph(f"{p.get('name', 'Party')} ({p.get('role', 'Role')})", style='List Bullet')
+
+    # Deadlines & Payment Terms Section
+    if deadlines_list or payment_terms_list:
+        doc.add_heading("📅 Deadlines & Payment Terms", level=2)
+        if deadlines_list:
+            doc.add_paragraph("Deadlines / Notices:", style='Normal').runs[0].bold = True
+            for d in deadlines_list:
+                doc.add_paragraph(d, style='List Bullet')
+        if payment_terms_list:
+            doc.add_paragraph("Payment Terms:", style='Normal').runs[0].bold = True
+            for pt in payment_terms_list:
+                doc.add_paragraph(pt, style='List Bullet')
+
+    # 4. Save to memory buffer and stream response
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    
+    safe_filename = f"Executive_Report_{contract.file_name.rsplit('.', 1)[0]}.docx"
+    
+    return StreamingResponse(
+        buffer, 
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
+    )

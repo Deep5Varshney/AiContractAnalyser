@@ -229,6 +229,29 @@ function ContractAnalysis() {
             {/* ================= TAB VIEW 1: ANALYSIS & INSIGHTS ================= */}
             {activeTab === "analysis" && (
               <>
+              {/* Download Executive Report Button */}
+                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+                  <a
+                    href={`${API_BASE_URL}/contracts/${id}/export/docx`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      background: "#10b981",
+                      color: "#ffffff",
+                      padding: "0.6rem 1.25rem",
+                      borderRadius: "8px",
+                      fontWeight: "600",
+                      textDecoration: "none",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                      fontSize: "0.9rem"
+                    }}
+                  >
+                    📥 Download Executive Report (.docx)
+                  </a>
+                </div>
                 {/* Split Grid View for Raw Text & AI Insights */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "2rem" }}>
                   
