@@ -1,24 +1,29 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Lambda & Deployment Artifacts
+*.zip
+deploy_pkg/
+lambda_deployment/
 
-node_modules
-dist
-dist-ssr
-*.local
+# Python Virtual Environments & Caches
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# Node.js dependencies & build output
+node_modules/
+dist/
+build/
+.vite/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.production
+
+# IDE & OS Junk
+.vscode/
+.idea/
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+Thumbs.db

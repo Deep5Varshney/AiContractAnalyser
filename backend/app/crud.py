@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from app.models import User
 from app.schemas import UserSyncRequest
+from app.models import Contract
 
 def sync_user(db: Session, user_data: UserSyncRequest) -> User:
     try:
@@ -66,3 +67,25 @@ def delete_user_from_db(db: Session, user_id: str) -> bool:
     except Exception:
         db.rollback()
         raise
+
+def create_contract_record(db: Session, contract_id: str, user_id: str, file_name: str, s3_key: str):
+    contract = Contract(
+        id=contract_id,
+        user_id=user_id,
+        file_name=file_name,
+        s3_key=s3_key,
+        status="PROCESSING"
+    )
+    db.add(contract)
+    db.commit()
+    db.refresh(contract)
+    return contract
+
+def update_contract_text(db: Session, contract_id: str, extracted_text: str, status: str = "ANALYZED"):
+    contract = db.query(Contract).filter(Contract.id == contract_id).first()
+    if contract:
+        contract.extracted_text = extracted_text
+        contract.status = status
+        db.commit()
+        db.refresh(contract)
+    return contract

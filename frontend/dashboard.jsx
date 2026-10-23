@@ -1,13 +1,10 @@
-
-
-
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 // Replace with your deployed API Gateway invoke URL
-const API_BASE_URL = "https://xxxx.execute-api.ap-south-1.amazonaws.com/dev";
-const S3_BUCKET_NAME = "ai-contract-vault-prod";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const S3_BUCKET_NAME = import.meta.env.VITE_S3_BUCKET_NAME;
 
 function Dashboard() {
   const navigate = useNavigate();
@@ -102,7 +99,7 @@ function Dashboard() {
     }
   };
 
-  const handleAnalyze = async () => {
+const handleAnalyze = async () => {
     if (!selectedFile) {
       setErrorMessage("Please select or drop a contract document first.");
       return;
@@ -116,24 +113,50 @@ function Dashboard() {
     setErrorMessage("");
 
     try {
-      // Step 1: Request S3 Presigned URL from API Gateway
+      // Step 1: Request S3 Presigned URL from API Gateway (sending both naming conventions to be 100% compatible)
       setStatusMessage("Requesting secure upload authorization...");
       const presignedRes = await fetch(`${API_BASE_URL}/contracts/upload-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           file_name: selectedFile.name,
+          fileName: selectedFile.name,
           file_type: selectedFile.type || "application/octet-stream",
-          user_id: userId
+          fileType: selectedFile.type || "application/octet-stream",
+          user_id: userId,
+          userId: userId
         })
       });
 
-      if (!presignedRes.ok) throw new Error("Failed to obtain upload URL.");
-      const { upload_url, s3_key } = await presignedRes.json();
+      const rawResponse = await presignedRes.json();
+      console.log("Raw Presigned Response:", rawResponse);
+
+      // Handle AWS API Gateway proxy responses where the payload is nested inside a stringified 'body' property
+      let responseData = rawResponse;
+      if (rawResponse.body && typeof rawResponse.body === "string") {
+        try {
+          responseData = JSON.parse(rawResponse.body);
+        } catch (e) {
+          // Fallback if unparseable
+        }
+      }
+
+      // Check if the backend returned an explicit error
+      if (!presignedRes.ok || rawResponse.statusCode >= 400 || responseData.error) {
+        throw new Error(responseData.error || "Failed to obtain upload URL.");
+      }
+
+      // Robust extraction of URLs and keys supporting multiple naming styles
+      const uploadUrl = responseData.upload_url || responseData.url || responseData.presigned_url;
+      const s3Key = responseData.s3_key || responseData.file_key;
+
+      if (!uploadUrl) {
+        throw new Error("Backend response did not contain a valid upload URL.");
+      }
 
       // Step 2: Stream Document Directly to Amazon S3
       setStatusMessage("Uploading document directly to Amazon S3...");
-      const s3UploadRes = await fetch(upload_url, {
+      const s3UploadRes = await fetch(uploadUrl, {
         method: "PUT",
         headers: {
           "Content-Type": selectedFile.type || "application/octet-stream"
@@ -143,7 +166,7 @@ function Dashboard() {
 
       if (!s3UploadRes.ok) throw new Error("Direct S3 upload failed.");
 
-      // Step 3: Trigger Textract Extraction & Postgres Record
+      // Step 3: Trigger Extraction & Postgres Record
       setStatusMessage("Extracting text and analyzing contract...");
       const contractId = crypto.randomUUID();
       const processRes = await fetch(`${API_BASE_URL}/contracts/process`, {
@@ -153,9 +176,9 @@ function Dashboard() {
           contract_id: contractId,
           user_id: userId,
           file_name: selectedFile.name,
-          file_type: selectedFile.type,
-          bucket_name: S3_BUCKET_NAME,
-          s3_key: s3_key
+          file_type: selectedFile.type || "application/pdf",
+          bucket_name: typeof S3_BUCKET_NAME !== 'undefined' ? S3_BUCKET_NAME : "ai-contract-vault",
+          s3_key: s3Key
         })
       });
 

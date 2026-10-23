@@ -1,84 +1,76 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 function MyContracts() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
+  const [contracts, setContracts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Temporary frontend data.
-  // Backend connect hone ke baad yahin API data aayega.
-  const contracts = [
-    {
-      id: 1,
-      name: "Employment Agreement.pdf",
-      date: "Analyzed today",
-      risk: "Low Risk",
-      score: 32,
-    },
-    {
-      id: 2,
-      name: "Internship Contract.pdf",
-      date: "Analyzed yesterday",
-      risk: "Medium Risk",
-      score: 54,
-    },
-    {
-      id: 3,
-      name: "Service Agreement.docx",
-      date: "Analyzed 2 days ago",
-      risk: "High Risk",
-      score: 78,
-    },
-    {
-      id: 4,
-      name: "Freelance Agreement.pdf",
-      date: "Analyzed 5 days ago",
-      risk: "Low Risk",
-      score: 28,
-    },
-  ];
+  const userId = user?.userId || user?.username || user?.id;
+
+  // Load user's contracts from PostgreSQL via API Gateway
+  useEffect(() => {
+    const fetchContracts = async () => {
+      if (!userId) return;
+      try {
+        setLoading(true);
+        const res = await fetch(`${API_BASE_URL}/contracts?user_id=${userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setContracts(data);
+        }
+      } catch (err) {
+        console.error("Error fetching contracts:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchContracts();
+  }, [userId]);
 
   const filteredContracts = useMemo(() => {
     return contracts.filter((contract) => {
-      const matchesSearch = contract.name
-        .toLowerCase()
-        .includes(search.toLowerCase());
-
-      const matchesFilter =
-        filter === "All" || contract.risk === filter;
-
+      const name = contract.file_name || "";
+      const matchesSearch = name.toLowerCase().includes(search.toLowerCase());
+      const matchesFilter = filter === "All" || (contract.status || "All") === filter;
       return matchesSearch && matchesFilter;
     });
-  }, [search, filter]);
+  }, [contracts, search, filter]);
 
-  const getRiskClass = (risk) => {
-    if (risk === "Low Risk") return "low";
-    if (risk === "Medium Risk") return "medium";
+  const getStatusClass = (status) => {
+    if (status === "ANALYZED") return "low";
+    if (status === "PROCESSING") return "medium";
     return "high";
   };
 
   return (
     <div className="my-contracts-page">
-
       {/* Header */}
       <div className="contracts-heading">
         <div>
           <h1>My Contracts</h1>
-          <p>
-            View and manage your previously analyzed contracts.
-          </p>
+          <p>View and manage your previously analyzed contracts.</p>
         </div>
 
-        <button className="upload-contract-btn">
+        <button
+          className="upload-contract-btn"
+          onClick={() => navigate("/dashboard")}
+        >
           + Upload Contract
         </button>
       </div>
 
       {/* Search + Filter */}
       <div className="contracts-toolbar">
-
         <div className="search-box">
           <span>🔍</span>
-
           <input
             type="text"
             placeholder="Search contracts..."
@@ -88,78 +80,73 @@ function MyContracts() {
         </div>
 
         <div className="filter-buttons">
-          {["All", "Low Risk", "Medium Risk", "High Risk"].map(
-            (item) => (
-              <button
-                key={item}
-                className={filter === item ? "active" : ""}
-                onClick={() => setFilter(item)}
-              >
-                {item}
-              </button>
-            )
-          )}
+          {["All", "ANALYZED", "PROCESSING", "FAILED"].map((item) => (
+            <button
+              key={item}
+              className={filter === item ? "active" : ""}
+              onClick={() => setFilter(item)}
+            >
+              {item === "ANALYZED"
+                ? "Analyzed"
+                : item === "PROCESSING"
+                ? "Processing"
+                : item === "FAILED"
+                ? "Failed"
+                : "All"}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Contracts */}
+      {/* Contracts Table */}
       <div className="contracts-list">
-
         <div className="contracts-list-header">
           <span>Contract</span>
-          <span>Risk Score</span>
           <span>Status</span>
+          <span>Upload Date</span>
           <span>Action</span>
         </div>
 
-        {filteredContracts.length > 0 ? (
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "2rem", color: "#718096" }}>
+            Loading contracts...
+          </div>
+        ) : filteredContracts.length > 0 ? (
           filteredContracts.map((contract) => (
             <div className="contract-row" key={contract.id}>
-
               <div className="contract-info">
                 <div className="file-icon">📄</div>
-
                 <div>
-                  <h3>{contract.name}</h3>
-                  <p>{contract.date}</p>
+                  <h3>{contract.file_name}</h3>
+                  <p>{contract.file_type || "Document"}</p>
                 </div>
               </div>
 
-              <div className={`risk-score ${getRiskClass(contract.risk)}`}>
-                {contract.score}
-              </div>
-
               <div>
-                <span
-                  className={`risk-badge ${getRiskClass(
-                    contract.risk
-                  )}`}
-                >
-                  {contract.risk}
+                <span className={`risk-badge ${getStatusClass(contract.status)}`}>
+                  {contract.status}
                 </span>
               </div>
 
-              <div className="contract-actions">
-                <button>View Analysis →</button>
-                <button className="download-btn">
-                  ↓
-                </button>
+              <div style={{ fontSize: "0.875rem", color: "#718096" }}>
+                {new Date(contract.created_at).toLocaleDateString()}
               </div>
 
+              <div className="contract-actions">
+                <button onClick={() => navigate(`/analysis/${contract.id}`)}>
+                  View Analysis →
+                </button>
+              </div>
             </div>
           ))
         ) : (
           <div className="no-contracts">
             <div>📂</div>
             <h3>No contracts found</h3>
-            <p>
-              Try changing your search or filter.
-            </p>
+            <p>Upload a contract from your dashboard to see it listed here.</p>
           </div>
         )}
-
       </div>
-
     </div>
   );
 }

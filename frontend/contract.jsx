@@ -1,9 +1,8 @@
-
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-const API_BASE_URL = "https://xxxx.execute-api.ap-south-1.amazonaws.com/dev";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 function MyContracts() {
   const navigate = useNavigate();

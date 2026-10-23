@@ -1,6 +1,3 @@
-
-
-
 import json
 import os
 import uuid
@@ -8,7 +5,8 @@ import boto3
 from botocore.config import Config
 
 s3_client = boto3.client('s3', config=Config(signature_version='s3v4'))
-BUCKET_NAME = os.environ.get('BUCKET_NAME')
+# Fallback to S3_BUCKET_NAME or 'ai-contract-vault' to prevent missing bucket errors
+BUCKET_NAME = os.environ.get('S3_BUCKET_NAME') or os.environ.get('BUCKET_NAME') or 'ai-contract-vault'
 
 CORS_HEADERS = {
     "Access-Control-Allow-Origin": "*",
@@ -18,10 +16,20 @@ CORS_HEADERS = {
 
 def lambda_handler(event, context):
     try:
-        body = json.loads(event.get('body') or '{}')
-        file_name = body.get('file_name')
-        file_type = body.get('file_type')
-        user_id = body.get('user_id')
+        # Robustly parse body whether it's a string, dict, or direct invocation
+        body = event
+        if "body" in event:
+            if isinstance(event["body"], str):
+                try:
+                    body = json.loads(event["body"])
+                except Exception:
+                    body = {}
+            elif isinstance(event["body"], dict):
+                body = event["body"]
+
+        file_name = body.get('file_name') or body.get('fileName')
+        file_type = body.get('file_type') or body.get('fileType')
+        user_id = body.get('user_id') or body.get('userId')
 
         if not file_name or not file_type or not user_id:
             return {
@@ -31,7 +39,7 @@ def lambda_handler(event, context):
             }
 
         ext = file_name.split('.')[-1]
-        s3_key = f"contracts/{user_id}/{uuid.uuid4()}.{ext}"
+        s3_key = f"uploads/{user_id}/{uuid.uuid4()}.{ext}"
 
         presigned_url = s3_client.generate_presigned_url(
             ClientMethod='put_object',

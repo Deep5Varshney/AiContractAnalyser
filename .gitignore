@@ -1,3 +1,38 @@
+# Lambda & Deployment Artifacts
+*.zip
+deploy_pkg/
+lambda_deployment/
+
+# Python Virtual Environments & Caches
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+
+# Node.js dependencies & build output
 node_modules/
+dist/
+build/
+.vite/
+
+# Environment Variables & Secrets
 .env
+.env.local
+.env.production
+
+# IDE & OS Junk
+.vscode/
+.idea/
 .DS_Store
+Thumbs.db
+
+# Python Virtual Environments & Caches
+python/
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
