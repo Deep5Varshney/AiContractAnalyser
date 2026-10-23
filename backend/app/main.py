@@ -6,8 +6,9 @@ import boto3
 import uuid
 import pypdf
 import docx
+from pydantic import BaseModel
 from botocore.config import Config
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, APIRouter, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from groq import Groq
@@ -57,6 +58,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class ChatRequest(BaseModel):
+    question: str
 
 def prune_deleted_cognito_users():
     """Removes any PostgreSQL users that no longer exist in AWS Cognito."""
@@ -319,3 +323,61 @@ def get_dashboard_summary(user_id: str, db: Session = Depends(get_db)):
         "processing": processing,
         "high_risk": high_risk
     }
+
+@app.post("/api/contracts/{contract_id}/chat")
+async def chat_with_contract(contract_id: str, payload: ChatRequest, db: Session = Depends(get_db)):
+    # 1. Fetch contract and AI analysis from DB
+    contract = db.query(Contract).filter(Contract.id == contract_id).first()
+    if not contract:
+        raise HTTPException(status_code=404, detail="Contract not found")
+    
+    analysis = db.query(ContractAnalysisResult).filter(ContractAnalysisResult.contract_id == contract_id).first()
+    
+    extracted_text = contract.extracted_text or "No extracted text available."
+    
+    # 2. Build analysis data string
+    analysis_insights = "No prior AI analysis generated."
+    if analysis:
+        analysis_dict = {}
+        # Try JSON field first
+        if hasattr(analysis, 'analysis_data') and analysis.analysis_data:
+            analysis_dict = analysis.analysis_data
+        elif hasattr(analysis, 'result_json') and analysis.result_json:
+            analysis_dict = analysis.result_json
+        else:
+            # Build manually from columns
+            if hasattr(analysis, 'summary'): analysis_dict['summary'] = analysis.summary
+            if hasattr(analysis, 'risks'): analysis_dict['risks'] = analysis.risks
+            if hasattr(analysis, 'parties'): analysis_dict['parties'] = analysis.parties
+            if hasattr(analysis, 'deadlines'): analysis_dict['deadlines'] = analysis.deadlines
+            if hasattr(analysis, 'payment_terms'): analysis_dict['payment_terms'] = analysis.payment_terms
+            
+        if analysis_dict:
+            analysis_insights = json.dumps(analysis_dict, indent=2)
+
+    # 3. Prompt referencing BOTH sources
+    prompt = f"""
+    You are an expert AI legal co-pilot. You have access to both the original contract text and the pre-computed AI Analysis / Risk Assessment.
+
+    Answer the user's question accurately using EITHER the AI Risk Analysis findings OR the contract text provided below.
+
+    AI Risk Analysis Findings:
+    {analysis_insights}
+
+    Original Contract Text:
+    {extracted_text}
+
+    User Question: {payload.question}
+    """
+    
+    try:
+        completion = groq_client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1
+        )
+        answer = completion.choices[0].message.content
+        return {"answer": answer}
+    except Exception as e:
+        print(f"Chat error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate AI response.")

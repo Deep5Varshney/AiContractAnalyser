@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import ReactMarkdown from 'react-markdown';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -13,6 +14,14 @@ function ContractAnalysis() {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [activeTab, setActiveTab] = useState("analysis");
+  // Chat States
+  const [messages, setMessages] = useState([
+    { role: "assistant", content: "Hello! I'm your AI legal assistant. Ask me anything about this contract." }
+  ]);
+  const [inputQuery, setInputQuery] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,6 +50,34 @@ function ContractAnalysis() {
 
     if (id) fetchData();
   }, [id]);
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!inputQuery.trim() || chatLoading) return;
+
+    const userMessage = inputQuery.trim();
+    setInputQuery("");
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    setChatLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/contracts/${id}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: userMessage })
+      });
+
+      if (!res.ok) throw new Error("Failed to get chat response.");
+      const data = await res.json();
+
+      setMessages((prev) => [...prev, { role: "assistant", content: data.answer }]);
+    } catch (err) {
+      console.error(err);
+      setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ Sorry, I encountered an error answering your question." }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -77,6 +114,39 @@ function ContractAnalysis() {
           >
             ← Back to Contracts
           </button>
+          {/* Tab Switcher */}
+          <div style={{ display: "flex", background: "#edf2f7", padding: "4px", borderRadius: "20px" }}>
+            <button
+              onClick={() => setActiveTab("analysis")}
+              style={{
+                padding: "6px 16px",
+                borderRadius: "16px",
+                border: "none",
+                background: activeTab === "analysis" ? "#ffffff" : "transparent",
+                color: activeTab === "analysis" ? "#4f46e5" : "#4a5568",
+                fontWeight: "600",
+                cursor: "pointer",
+                boxShadow: activeTab === "analysis" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"
+              }}
+            >
+              Analysis & Summary
+            </button>
+            <button
+              onClick={() => setActiveTab("chat")}
+              style={{
+                padding: "6px 16px",
+                borderRadius: "16px",
+                border: "none",
+                background: activeTab === "chat" ? "#ffffff" : "transparent",
+                color: activeTab === "chat" ? "#4f46e5" : "#4a5568",
+                fontWeight: "600",
+                cursor: "pointer",
+                boxShadow: activeTab === "chat" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"
+              }}
+            >
+              💬 AI Contract Chat
+            </button>
+          </div>
         </div>
 
         {contract && (
@@ -106,122 +176,182 @@ function ContractAnalysis() {
               </div>
             </div>
 
-            {/* Split Grid View for Raw Text & AI Insights */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "2rem" }}>
-              
-              {/* Left Column: Extracted Document Text */}
-              <div className="analyze-section" style={{ textAlign: "left", padding: "1.5rem" }}>
-                <h3 style={{ marginBottom: "1rem", color: "#2d3748", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span>📄</span> Extracted Text Document
-                </h3>
-                <div style={{ 
-                  background: "#f8fafc", 
-                  padding: "1rem", 
-                  borderRadius: "8px", 
-                  whiteSpace: "pre-wrap", 
-                  border: "1px solid #e2e8f0",
-                  height: "450px",
-                  overflowY: "auto",
-                  fontSize: "0.875rem",
-                  color: "#4a5568",
-                  fontFamily: "monospace"
-                }}>
-                  {contract.extracted_text || "No text extracted."}
-                </div>
-              </div>
+            {/* ================= TAB VIEW 1: ANALYSIS & INSIGHTS ================= */}
+            {activeTab === "analysis" && (
+              <>
+                {/* Split Grid View for Raw Text & AI Insights */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem", marginBottom: "2rem" }}>
+                  
+                  {/* Left Column: Extracted Document Text */}
+                  <div className="analyze-section" style={{ textAlign: "left", padding: "1.5rem" }}>
+                    <h3 style={{ marginBottom: "1rem", color: "#2d3748", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span>📄</span> Extracted Text Document
+                    </h3>
+                    <div style={{ 
+                      background: "#f8fafc", 
+                      padding: "1rem", 
+                      borderRadius: "8px", 
+                      whiteSpace: "pre-wrap", 
+                      border: "1px solid #e2e8f0",
+                      height: "450px",
+                      overflowY: "auto",
+                      fontSize: "0.875rem",
+                      color: "#4a5568",
+                      fontFamily: "monospace"
+                    }}>
+                      {contract.extracted_text || "No text extracted."}
+                    </div>
+                  </div>
 
-              {/* Right Column: AI Analysis & Deep Insights */}
-              <div className="analyze-section" style={{ textAlign: "left", padding: "1.5rem" }}>
-                <h3 style={{ marginBottom: "1rem", color: "#2d3748", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span>🤖</span> AI Contract Insights & Summary
-                </h3>
-                <div style={{ 
-                  background: "#fdf8f6", 
-                  padding: "1rem", 
-                  borderRadius: "8px", 
-                  border: "1px solid #fed7d7",
-                  height: "450px",
-                  overflowY: "auto",
-                  fontSize: "0.9rem",
-                  color: "#2d3748"
-                }}>
-                  {analysis ? (
-                    <div>
-                      <p style={{ fontWeight: "600", color: "#2b6cb0", marginBottom: "0.5rem" }}>📌 Executive Summary</p>
-                      <p style={{ marginBottom: "1rem", color: "#4a5568", fontSize: "0.85rem" }}>
-                        {analysis.summary || "No summary generated."}
-                      </p>
+                  {/* Right Column: AI Analysis & Deep Insights */}
+                  <div className="analyze-section" style={{ textAlign: "left", padding: "1.5rem" }}>
+                    <h3 style={{ marginBottom: "1rem", color: "#2d3748", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span>🤖</span> AI Contract Insights & Summary
+                    </h3>
+                    <div style={{ 
+                      background: "#fdf8f6", 
+                      padding: "1rem", 
+                      borderRadius: "8px", 
+                      border: "1px solid #fed7d7",
+                      height: "450px",
+                      overflowY: "auto",
+                      fontSize: "0.9rem",
+                      color: "#2d3748"
+                    }}>
+                      {analysis ? (
+                        <div>
+                          <p style={{ fontWeight: "600", color: "#2b6cb0", marginBottom: "0.5rem" }}>📌 Executive Summary</p>
+                          <p style={{ marginBottom: "1rem", color: "#4a5568", fontSize: "0.85rem" }}>
+                            {analysis.summary || "No summary generated."}
+                          </p>
 
-                      <hr style={{ border: "0", borderTop: "1px solid #e2e8f0", margin: "1rem 0" }} />
+                          <hr style={{ border: "0", borderTop: "1px solid #e2e8f0", margin: "1rem 0" }} />
 
-                      <p style={{ fontWeight: "600", color: "#c53030", marginBottom: "0.5rem" }}>⚠️ Risk Analysis & Clauses</p>
-                      {analysis.risks && analysis.risks.length > 0 ? (
-                        analysis.risks.map((r, idx) => (
-                          <div key={idx} style={{ marginBottom: "0.75rem", background: "#fff", padding: "0.75rem", borderRadius: "6px", border: "1px solid #e2e8f0" }}>
-                            <div style={{ fontWeight: "600", fontSize: "0.85rem", color: "#1a202c" }}>{r.title} ({r.severity} Risk)</div>
-                            <p style={{ fontSize: "0.8rem", color: "#4a5568", margin: "0.25rem 0" }}>{r.reason}</p>
-                            {r.recommendation && (
-                              <p style={{ fontSize: "0.8rem", color: "#2b6cb0", fontWeight: "500" }}>💡 {r.recommendation}</p>
-                            )}
-                          </div>
-                        ))
+                          <p style={{ fontWeight: "600", color: "#c53030", marginBottom: "0.5rem" }}>⚠️ Risk Analysis & Clauses</p>
+                          {analysis.risks && analysis.risks.length > 0 ? (
+                            analysis.risks.map((r, idx) => (
+                              <div key={idx} style={{ marginBottom: "0.75rem", background: "#fff", padding: "0.75rem", borderRadius: "6px", border: "1px solid #e2e8f0" }}>
+                                <div style={{ fontWeight: "600", fontSize: "0.85rem", color: "#1a202c" }}>{r.title} ({r.severity} Risk)</div>
+                                <p style={{ fontSize: "0.8rem", color: "#4a5568", margin: "0.25rem 0" }}>{r.reason}</p>
+                                {r.recommendation && (
+                                  <p style={{ fontSize: "0.8rem", color: "#2b6cb0", fontWeight: "500" }}>💡 {r.recommendation}</p>
+                                )}
+                              </div>
+                            ))
+                          ) : (
+                            <p style={{ fontSize: "0.85rem", color: "#4a5568" }}>No significant risks detected.</p>
+                          )}
+                        </div>
                       ) : (
-                        <p style={{ fontSize: "0.85rem", color: "#4a5568" }}>No significant risks detected.</p>
+                        <>
+                          <p style={{ fontWeight: "600", color: "#c53030", marginBottom: "0.5rem" }}>⚠️ Risk Analysis Loading</p>
+                          <p style={{ marginBottom: "1rem", color: "#4a5568" }}>
+                            Fetching deep AI analysis and clause evaluations...
+                          </p>
+                        </>
                       )}
                     </div>
-                  ) : (
-                    <>
-                      <p style={{ fontWeight: "600", color: "#c53030", marginBottom: "0.5rem" }}>⚠️ Risk Analysis Loading</p>
-                      <p style={{ marginBottom: "1rem", color: "#4a5568" }}>
-                        Fetching deep AI analysis and clause evaluations...
-                      </p>
-                    </>
-                  )}
+                  </div>
+
                 </div>
-              </div>
 
-            </div>
-
-            {/* Contracting Parties & Deadlines / Payment Terms Grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
-              
-              {/* Contracting Parties */}
-              <div className="analyze-section" style={{ textAlign: "left", padding: "1.5rem" }}>
-                <h3 style={{ marginBottom: "1rem", color: "#2d3748", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span>🤝</span> Contracting Parties
-                </h3>
-                <ul style={{ paddingLeft: "1.2rem", color: "#4a5568", fontSize: "0.9rem" }}>
-                  {analysis?.parties && analysis.parties.length > 0 ? (
-                    analysis.parties.map((p, idx) => (
-                      <li key={idx} style={{ marginBottom: "0.5rem" }}>
-                        <strong>{p.name}</strong> ({p.role})
-                      </li>
-                    ))
-                  ) : (
-                    <li>Employer / Employee (Standard Template)</li>
-                  )}
-                </ul>
-              </div>
-
-              {/* Deadlines & Payment Terms */}
-              <div className="analyze-section" style={{ textAlign: "left", padding: "1.5rem" }}>
-                <h3 style={{ marginBottom: "1rem", color: "#2d3748", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span>📅</span> Deadlines & Payment Terms
-                </h3>
-                <div style={{ fontSize: "0.875rem", color: "#4a5568", spaceY: "0.75rem" }}>
-                  <p style={{ fontWeight: "600", color: "#2d3748", marginBottom: "0.25rem" }}>Deadlines & Notices:</p>
-                  <p style={{ marginBottom: "0.75rem" }}>
-                    {analysis?.deadlines?.length ? analysis.deadlines.join(', ') : 'Probationary period length, notice period for termination, penalty clauses applicable.'}
-                  </p>
+                {/* Contracting Parties & Deadlines / Payment Terms Grid */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
                   
-                  <p style={{ fontWeight: "600", color: "#2d3748", marginBottom: "0.25rem" }}>Payment Terms:</p>
-                  <p>
-                    {analysis?.payment_terms?.length ? analysis.payment_terms.join(', ') : 'Employee receives CTC salary; conditional upon meeting objectives.'}
-                  </p>
-                </div>
-              </div>
+                  {/* Contracting Parties */}
+                  <div className="analyze-section" style={{ textAlign: "left", padding: "1.5rem" }}>
+                    <h3 style={{ marginBottom: "1rem", color: "#2d3748", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span>🤝</span> Contracting Parties
+                    </h3>
+                    <ul style={{ paddingLeft: "1.2rem", color: "#4a5568", fontSize: "0.9rem" }}>
+                      {analysis?.parties && analysis.parties.length > 0 ? (
+                        analysis.parties.map((p, idx) => (
+                          <li key={idx} style={{ marginBottom: "0.5rem" }}>
+                            <strong>{p.name}</strong> ({p.role})
+                          </li>
+                        ))
+                      ) : (
+                        <li>Employer / Employee (Standard Template)</li>
+                      )}
+                    </ul>
+                  </div>
 
-            </div>
+                  {/* Deadlines & Payment Terms */}
+                  <div className="analyze-section" style={{ textAlign: "left", padding: "1.5rem" }}>
+                    <h3 style={{ marginBottom: "1rem", color: "#2d3748", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span>📅</span> Deadlines & Payment Terms
+                    </h3>
+                    <div style={{ fontSize: "0.875rem", color: "#4a5568" }}>
+                      <p style={{ fontWeight: "600", color: "#2d3748", marginBottom: "0.25rem" }}>Deadlines & Notices:</p>
+                      <p style={{ marginBottom: "0.75rem" }}>
+                        {analysis?.deadlines?.length ? analysis.deadlines.join(', ') : 'Probationary period length, notice period for termination, penalty clauses applicable.'}
+                      </p>
+                      
+                      <p style={{ fontWeight: "600", color: "#2d3748", marginBottom: "0.25rem" }}>Payment Terms:</p>
+                      <p>
+                        {analysis?.payment_terms?.length ? analysis.payment_terms.join(', ') : 'Employee receives CTC salary; conditional upon meeting objectives.'}
+                      </p>
+                    </div>
+                  </div>
+
+                </div>
+              </>
+            )}
+
+            {/* ================= TAB VIEW 2: AI CONTRACT CHAT ================= */}
+            {activeTab === "chat" && (
+              <div className="analyze-section" style={{ textAlign: "left", padding: "2rem", display: "flex", flexDirection: "column", height: "600px" }}>
+                <h3 style={{ marginBottom: "1rem", color: "#2d3748", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span>💬</span> Chat with Contract Intelligence
+                </h3>
+                
+                {/* Message History Box */}
+                <div style={{ flex: 1, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "1.5rem", overflowY: "auto", marginBottom: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {messages.map((msg, index) => (
+                    <div key={index} style={{ 
+                          alignSelf: msg.role === "user" ? "flex-end" : "flex-start", 
+                          maxWidth: "85%", 
+                          background: msg.role === "user" ? "#4f46e5" : "#ffffff", 
+                          color: msg.role === "user" ? "#ffffff" : "#1a202c", 
+                          padding: "1rem 1.25rem", 
+                          borderRadius: "12px", 
+                          border: msg.role === "assistant" ? "1px solid #e2e8f0" : "none", 
+                          boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                          lineHeight: "1.6"
+                        }}>
+                          {msg.role === "user" ? (
+                            <p style={{ fontSize: "0.9rem", margin: 0 }}>{msg.content}</p>
+                          ) : (
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          )}
+                        </div>
+                  ))}
+                  {chatLoading && (
+                    <div style={{ alignSelf: "flex-start", background: "#ffffff", padding: "1rem", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+                      <p style={{ fontSize: "0.9rem", color: "#718096", margin: 0 }}>Thinking and reviewing contract clauses...</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Input Form */}
+                <form onSubmit={handleSendMessage} style={{ display: "flex", gap: "1rem" }}>
+                  <input
+                    type="text"
+                    value={inputQuery}
+                    onChange={(e) => setInputQuery(e.target.value)}
+                    placeholder="Ask a question about termination clauses, payment terms, penalties, etc..."
+                    style={{ flex: 1, padding: "0.75rem 1rem", borderRadius: "8px", border: "1px solid #cbd5e0", outline: "none", fontSize: "0.9rem" }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={chatLoading}
+                    style={{ padding: "0.75rem 1.5rem", background: "#4f46e5", color: "#ffffff", border: "none", borderRadius: "8px", fontWeight: "600", cursor: "pointer" }}
+                  >
+                    Send
+                  </button>
+                </form>
+              </div>
+            )}
           </>
         )}
       </main>
