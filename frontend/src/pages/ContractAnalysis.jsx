@@ -16,6 +16,10 @@ function ContractAnalysis() {
   const [error, setError] = useState("");
 
   const [activeTab, setActiveTab] = useState("analysis");
+  const [compareFile, setCompareFile] = useState(null);
+  const [comparing, setComparing] = useState(false);
+  const [comparisonData, setComparisonData] = useState(null);
+  const [compareError, setCompareError] = useState("");
   // Chat States
   const [messages, setMessages] = useState([
     { role: "assistant", content: "Hello! I'm your AI legal assistant. Ask me anything about this contract." }
@@ -102,6 +106,37 @@ function ContractAnalysis() {
     );
   }
 
+  const handleCompareSubmit = async (e) => {
+  e.preventDefault();
+  if (!compareFile) return;
+
+  setComparing(true);
+  setCompareError("");
+
+  const formData = new FormData();
+  formData.append("file", compareFile);
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/contracts/${id}/compare`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.detail || "Comparison failed.");
+    }
+
+    const data = await res.json();
+    setComparisonData(data);
+  } catch (err) {
+    console.error(err);
+    setCompareError(err.message || "Failed to compare contract versions.");
+  } finally {
+    setComparing(false);
+  }
+};
+
   return (
     <div className="dashboard-page">
 
@@ -146,6 +181,21 @@ function ContractAnalysis() {
             >
               💬 AI Contract Chat
             </button>
+            <button
+            onClick={() => setActiveTab("compare")}
+            style={{
+              padding: "6px 16px",
+              borderRadius: "16px",
+              border: "none",
+              background: activeTab === "compare" ? "#ffffff" : "transparent",
+              color: activeTab === "compare" ? "#4f46e5" : "#4a5568",
+              fontWeight: "600",
+              cursor: "pointer",
+              boxShadow: activeTab === "compare" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"
+            }}
+          >
+            🔄 Version Comparison
+          </button>
           </div>
         </div>
 
@@ -350,6 +400,104 @@ function ContractAnalysis() {
                     Send
                   </button>
                 </form>
+              </div>
+            )}
+
+            {/* ================= TAB VIEW 3: CONTRACT VERSION COMPARISON ================= */}
+            {activeTab === "compare" && (
+              <div className="analyze-section" style={{ textAlign: "left", padding: "2rem" }}>
+                <h3 style={{ marginBottom: "0.5rem", color: "#2d3748" }}>
+                  🔄 Compare with Revised Contract (V2)
+                </h3>
+                <p style={{ color: "#718096", fontSize: "0.9rem", marginBottom: "1.5rem" }}>
+                  Upload a redlined or updated draft to analyze clause-by-clause changes and legal impact.
+                </p>
+
+                {/* File Upload Box */}
+                <form onSubmit={handleCompareSubmit} style={{ display: "flex", gap: "1rem", alignItems: "center", marginBottom: "2rem" }}>
+                  <input
+                    type="file"
+                    accept=".pdf,.docx"
+                    onChange={(e) => setCompareFile(e.target.files[0])}
+                    style={{ padding: "0.5rem", border: "1px solid #cbd5e0", borderRadius: "8px", background: "#fff" }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={!compareFile || comparing}
+                    style={{
+                      padding: "0.6rem 1.5rem",
+                      background: "#4f46e5",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "8px",
+                      fontWeight: "600",
+                      cursor: comparing ? "not-allowed" : "pointer"
+                    }}
+                  >
+                    {comparing ? "Analyzing Differences..." : "Compare Versions"}
+                  </button>
+                </form>
+
+                {compareError && (
+                  <p style={{ color: "#e53e3e", fontSize: "0.9rem", marginBottom: "1rem" }}>⚠️ {compareError}</p>
+                )}
+
+                {/* Comparison Results Cards */}
+                {comparisonData && (
+                  <div>
+                    <div style={{ background: "#ebf8ff", border: "1px solid #bee3f8", padding: "1rem", borderRadius: "8px", marginBottom: "1.5rem" }}>
+                      <h4 style={{ color: "#2b6cb0", margin: 0 }}>
+                        Comparing: <strong>{comparisonData.v1_file_name} (V1)</strong> ↔ <strong>{comparisonData.v2_file_name} (V2)</strong>
+                      </h4>
+                    </div>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                      {comparisonData.changes && comparisonData.changes.length > 0 ? (
+                        comparisonData.changes.map((change, idx) => (
+                          <div key={idx} style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "1.25rem", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                            
+                            {/* Header Badge */}
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                              <h4 style={{ margin: 0, color: "#1a202c" }}>{change.clause_topic || "Clause Revision"}</h4>
+                              <span style={{
+                                fontSize: "0.75rem",
+                                fontWeight: "700",
+                                padding: "0.25rem 0.75rem",
+                                borderRadius: "12px",
+                                background: change.type === "ADDED" ? "#def7ec" : change.type === "REMOVED" ? "#fde8e8" : "#feecdc",
+                                color: change.type === "ADDED" ? "#03543f" : change.type === "REMOVED" ? "#9b1c1c" : "#92400e"
+                              }}>
+                                {change.type}
+                              </span>
+                            </div>
+
+                            {/* Side-by-side Old vs New Text */}
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
+                              <div style={{ background: "#fff5f5", padding: "0.75rem", borderRadius: "6px", border: "1px solid #fed7d7" }}>
+                                <p style={{ fontSize: "0.75rem", fontWeight: "700", color: "#c53030", margin: "0 0 0.25rem 0" }}>V1 (Original):</p>
+                                <p style={{ fontSize: "0.85rem", color: "#2d3748", margin: 0, whiteSpace: "pre-wrap" }}>{change.old_text || "N/A (New Clause Added)"}</p>
+                              </div>
+                              <div style={{ background: "#f0fff4", padding: "0.75rem", borderRadius: "6px", border: "1px solid #c6f6d5" }}>
+                                <p style={{ fontSize: "0.75rem", fontWeight: "700", color: "#2f855a", margin: "0 0 0.25rem 0" }}>V2 (Revised):</p>
+                                <p style={{ fontSize: "0.85rem", color: "#2d3748", margin: 0, whiteSpace: "pre-wrap" }}>{change.new_text || "N/A (Clause Removed)"}</p>
+                              </div>
+                            </div>
+
+                            {/* AI Legal Explanation */}
+                            <div style={{ background: "#f7fafc", padding: "0.75rem 1rem", borderRadius: "6px", borderLeft: "4px solid #4f46e5" }}>
+                              <p style={{ fontSize: "0.85rem", color: "#2d3748", margin: 0 }}>
+                                💡 <strong>Legal Impact:</strong> {change.significance}
+                              </p>
+                            </div>
+
+                          </div>
+                        ))
+                      ) : (
+                        <p style={{ color: "#718096" }}>No significant differences detected between the two documents.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>

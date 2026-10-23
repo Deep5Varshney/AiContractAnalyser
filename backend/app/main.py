@@ -1,4 +1,5 @@
 import traceback
+import difflib
 import io
 import os
 import json
@@ -8,7 +9,7 @@ import pypdf
 import docx
 from pydantic import BaseModel
 from botocore.config import Config
-from fastapi import FastAPI, Depends, HTTPException, APIRouter, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, APIRouter, HTTPException, status, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from groq import Groq
@@ -61,6 +62,18 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     question: str
+
+# --- Models for Comparison ---
+class ClauseDiff(BaseModel):
+    change_type: str  # "ADDED", "REMOVED", "MODIFIED"
+    old_text: str
+    new_text: str
+    significance_explanation: str
+
+class ComparisonResponse(BaseModel):
+    v1_contract_id: str
+    v2_file_name: str
+    diffs: list[dict]
 
 def prune_deleted_cognito_users():
     """Removes any PostgreSQL users that no longer exist in AWS Cognito."""
@@ -381,3 +394,97 @@ async def chat_with_contract(contract_id: str, payload: ChatRequest, db: Session
     except Exception as e:
         print(f"Chat error: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate AI response.")
+
+@app.post("/api/contracts/{contract_id}/compare")
+async def compare_contract_versions(
+    contract_id: str, 
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db)
+):
+    # 1. Fetch Version 1 from DB
+    v1_contract = db.query(Contract).filter(Contract.id == contract_id).first()
+    if not v1_contract:
+        raise HTTPException(status_code=404, detail="Version 1 contract not found")
+    
+    v1_text = v1_contract.extracted_text or ""
+    if not v1_text.strip():
+        raise HTTPException(status_code=400, detail="Version 1 contract has no extracted text")
+
+    # 2. Extract text from uploaded Version 2 file
+    file_bytes = await file.read()
+    filename = file.filename.lower()
+    v2_text = ""
+
+    try:
+        if filename.endswith(".pdf"):
+            pdf_reader = pypdf.PdfReader(io.BytesIO(file_bytes))
+            v2_text = "\n".join([page.extract_text() for page in pdf_reader.pages if page.extract_text()])
+        elif filename.endswith(".docx"):
+            doc = docx.Document(io.BytesIO(file_bytes))
+            v2_text = "\n".join([p.text for p.text in doc.paragraphs if p.text])
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file format. Please upload PDF or DOCX.")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to extract text from revised file: {str(e)}")
+
+    v1_text_trimmed = v1_text[:12000]
+    v2_text_trimmed = v2_text[:12000]
+    # 3. Prompt Groq LLM to analyze differences and legal significance
+    prompt = f"""
+    You are an expert AI legal co-pilot specializing in contract redlining and version comparison.
+    Compare Original Contract (Version 1) with Revised Contract (Version 2).
+
+    Identify key additions, deletions, or modifications between the two versions.
+    For each change, explain its potential legal and financial significance.
+
+    CRITICAL REQUIREMENT: Return ONLY a valid, raw JSON object with no preamble, markdown formatting, or code blocks.
+    JSON structure:
+    {{
+        "changes": [
+            {{
+                "type": "MODIFIED",
+                "clause_topic": "Termination Penalty",
+                "old_text": "Clause text from V1",
+                "new_text": "Clause text from V2",
+                "significance": "Legal and financial impact."
+            }}
+        ]
+    }}
+
+    Original Contract (Version 1):
+    {v1_text_trimmed}
+
+    Revised Contract (Version 2):
+    {v2_text_trimmed}
+    """
+
+    try:
+        completion = groq_client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1
+        )
+        
+        raw_content = completion.choices[0].message.content.strip()
+        
+        # Clean up Markdown backticks if present
+        if raw_content.startswith("```"):
+            lines = raw_content.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            raw_content = "\n".join(lines).strip()
+
+        result = json.loads(raw_content)
+        changes = result.get("changes", [])
+        
+        return {
+            "v1_contract_id": contract_id,
+            "v1_file_name": v1_contract.file_name,
+            "v2_file_name": file.filename,
+            "changes": changes
+        }
+    except Exception as e:
+        print(f"Comparison error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to run AI version comparison.")
